@@ -8,15 +8,10 @@ Created on Wed Nov 29 20:58:35 2023
 
 # Load packages
 import pandas as pd
-import re
 import numpy as np
+import re
 import os
-
 from datetime import datetime
-
-folder_path = 'teacher_directory'
-f_splits = re.split('\(|\)|\s', folder_path)
-teacher = f_splits[4]
 
 
 # functions
@@ -39,11 +34,11 @@ def parse_row_headers(step_info_df):
             inc_ind = 'a'
             inc_col.append(inc_ind)
 
-        elif row_head in student_lesson_categories:  # Student lesson stats 
+        elif row_head in student_lesson_cols:  # Student lesson stats 
             inc_ind = 0
             inc_col.append(inc_ind)
 
-        elif row_head in student_grade_categories: # Completed, Time Spent, etc
+        elif row_head in student_grade_cols: # Completed, Time Spent, etc
             inc_col.append(inc_ind)           
 
         else: # if '(' in row_head, split into step, number, and description
@@ -73,6 +68,12 @@ def parse_row_headers(step_info_df):
                     step_type = splits[-1].strip()
                     new_row.append(step_type.strip())
 
+                    if step_type == 'Audio':
+                        print(lesson_num, '\b: audio')
+                    elif step_type == 'Video':
+                        print(lesson_num, '\b: video')
+
+
                 else:
                     new_row.append("")
 
@@ -80,6 +81,7 @@ def parse_row_headers(step_info_df):
             lesson_data.append([inc_ind, task_num, task_desc, step_num, desc, step_type])
 
     return lesson_data, inc_col
+
 
 def reshape_student_data(student_number):
     """
@@ -100,15 +102,27 @@ def reshape_student_data(student_number):
 
         if 'Accessed' in header:
             student_data_dict[index]['Completed'] = value
-        elif 'Video Length' in header:
-            student_data_dict[index]['Paragraph Length'] = value        
+#        elif 'Video Length' in header:
+#            student_data_dict[index]['Paragraph Length'] = value        
         else:
             student_data_dict[index][header] = value
 
     # Convert the dictionary back to a list of lists
-    reshaped_student_data = [[row.get(s, '') for s in student_completion[1:]] for row in student_data_dict.values()]
+    reshaped_student_data = [[row.get(s, '') for s in student_grade_cols_numbered[1:]] for row in student_data_dict.values()]
 
     return reshaped_student_data
+
+
+def parse_time(str_sec):    
+    splits = re.split('m|s', str_sec)
+    num_minutes = splits[0]
+    num_seconds = splits[1]
+    total_seconds = int(num_minutes)*60 + int(num_seconds)
+    return total_seconds
+
+def parse_chars(str_char):
+    num_chars = re.split('Character', str_char)[0]    
+    return num_chars
 
 
 def read_class_data(data_df):
@@ -121,6 +135,10 @@ def read_class_data(data_df):
     student_numbers = data_df.columns[2:-2] # student number list, omit last columns with averages 
 
     for sn in student_numbers:    
+        # st_lesson_info format is lesson_num + student_lesson_cols    
+        time_spent = data_df[sn][2] 
+        if isinstance (time_spent, str):
+            data_df[sn][2] = parse_time(time_spent) 
         st_lesson_info = list(data_df[sn][0:5])  # same for all rows for one student
 
         # Reformat date string to MM-DD-YY
@@ -153,19 +171,26 @@ def read_class_data(data_df):
     return all_student_data
 
 
+# File path
+f_splits = re.split('\(|\)|\s', folder_path)
+teacher = f_splits[4]
 
 # List all files in the folder
 files = os.listdir(folder_path)
 
 
 # This data will be the same for each row of one student
-student_lesson_categories = ['Last Date Worked on', 'Time Spent on Lesson', 'Percent Complete', 'Grade']
+student_lesson_cols     = ['Last Date Worked on', 'Time Spent on Lesson', 'Percent Complete', 'Grade']
+student_lesson_cols_out = [student_lesson_cols[0], 'Time Spent on Lesson (sec)'] + student_lesson_cols[2:] # added sec
 
-student_grade_categories =  ['Completed', 'Time Spent on Step', 'Reviewed Peer Responses', 'Paragraph Length',
-                             'Video Length', 'Audio Length']
+student_grade_cols     =  ['Completed', 'Time Spent on Step', 'Reviewed Peer Responses', 'Paragraph Length',
+                           'Video Length', 'Audio Length']
+student_grade_cols_out =  ['Completed', 'Time Spent on Step (sec)', 'Reviewed Peer Responses', 'Paragraph Length (char)',
+                           'Video Length (sec)', 'Audio Length (sec)'] # added sec, char
 
 # student completion is similar except with Inc Step Num and without Video and Audio Length
-student_completion = ['Inc Step Num'] + student_grade_categories[:4] 
+student_grade_cols_numbered = ['Inc Step Num'] + student_grade_cols  # Do I need this?
+
 
 step_type_list = ['Accessed', 'Paragraph', 'Single Select', 'Image', 'Table', 'Video', 'Audio']
 
@@ -200,12 +225,24 @@ for f in files:
     data_df.insert(0, 'Inc step', inc_col) # insert Inc step column into data_df
     
     # Write data to student dataframe
-    column_titles = ['Teacher', 'Student Name'] + [lesson_num] + student_lesson_categories + lesson_cols + student_grade_categories[:4]
-    all_df = pd.DataFrame(read_class_data(data_df), columns=column_titles)
+    new_col_titles = ['Teacher', 'Student Name'] + [lesson_num] + student_lesson_cols_out + lesson_cols + student_grade_cols_out
+    all_df = pd.DataFrame(read_class_data(data_df), columns=new_col_titles)
 
     # Write files
     output_file_name = 'output_data_' + teacher + '_' + lesson_num
 
  #   all_df.to_excel(output_file_name + '.xlsx', index=False)
     all_df.to_csv(output_file_name + '.csv', index=False)
+
+
+    lesson_df = pd.DataFrame(lesson_data, columns=lesson_cols)
+    lesson_file_name = 'lesson_data_' + lesson_num
+
+    # Write csv for each lesson
+    #    lesson_df.to_csv(output_lesson_data + '.csv', index=False)
+
+    # Write lesson data to one Excel sheet with one tab per lesson
+    
+    # Or use excel writer?
+    lesson_df.to_excel('lesson_data.xlsx', sheet_name=lesson_num)
 
