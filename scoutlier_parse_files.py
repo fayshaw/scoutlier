@@ -102,9 +102,13 @@ def reshape_student_data(student_number):
 
         if 'Accessed' in header:
             student_data_dict[index]['Completed'] = value
-#        elif 'Video Length' in header:
-#            student_data_dict[index]['Paragraph Length'] = value        
         else:
+            if header in ['Time Spent on Step', 'Video Length', 'Video Length'] and value is not np.nan:
+                value = parse_time(value)
+            
+            elif header == 'Paragraph Length' and value is not np.nan:
+                value = parse_char(value)
+                
             student_data_dict[index][header] = value
 
     # Convert the dictionary back to a list of lists
@@ -113,6 +117,11 @@ def reshape_student_data(student_number):
     return reshaped_student_data
 
 
+def parse_grade(str_grade):
+    num_grade = re.split('/', str_grade)
+    dec_grade = int(num_grade[0]) / int(num_grade[1]) 
+    return dec_grade
+
 def parse_time(str_sec):    
     splits = re.split('m|s', str_sec)
     num_minutes = splits[0]
@@ -120,8 +129,8 @@ def parse_time(str_sec):
     total_seconds = int(num_minutes)*60 + int(num_seconds)
     return total_seconds
 
-def parse_chars(str_char):
-    num_chars = re.split('Character', str_char)[0]    
+def parse_char(str_char):
+    num_chars = re.split('Character ', str_char)[0]    
     return num_chars
 
 
@@ -141,8 +150,9 @@ def read_class_data(data_df):
             data_df[sn][2] = parse_time(time_spent) 
         st_lesson_info = list(data_df[sn][0:5])  # same for all rows for one student
 
+
         # Reformat date string to MM-DD-YY
-        date_string = st_lesson_info[1]
+        date_string = data_df[sn][1]
         if date_string is not np.nan:
             # Convert string to datetime object
             datetime_object = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
@@ -152,11 +162,12 @@ def read_class_data(data_df):
             st_lesson_info[1] = formatted_date
 
         # Reformat completion percent at string with %
-        grade = st_lesson_info[3]
+        grade = st_lesson_info[3]  # TODO check 100/100 for Piros
         if grade is not np.nan:
             decimal_value = float(grade)
             percent_string = "{:.0%}".format(decimal_value)
             st_lesson_info[3] = percent_string
+
 
         # Create current row
         current_student_row = [teacher, sn]  
@@ -172,11 +183,12 @@ def read_class_data(data_df):
 
 
 # File path
+folder_path = 'teacher_directory'
 f_splits = re.split('\(|\)|\s', folder_path)
 teacher = f_splits[4]
 
 # List all files in the folder
-files = os.listdir(folder_path)
+files = os.listdir(file_path)
 
 
 # This data will be the same for each row of one student
