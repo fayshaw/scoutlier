@@ -73,6 +73,7 @@ def parse_row_headers(step_info_df):
                     elif step_type == 'Video':
                         print(lesson_num, '\b: video')
 
+
                 else:
                     new_row.append("")
 
@@ -84,8 +85,7 @@ def parse_row_headers(step_info_df):
 
 def reshape_student_data(student_number):
     """
-    Populates dictionary with student data and reshapes it into a table 
-    Parses time to seconds, paragraph chars
+    Populates dictionary with student data and reshapes it to a table 
     """
     # Initialize a dictionary to store the reshaped student data
     student_data_dict = {}
@@ -94,7 +94,7 @@ def reshape_student_data(student_number):
     for index, row in data_df[['Inc step', 'Step Info', student_number]].iterrows():
         index, header, value = row
 
-        if not str(index).isnumeric() or index == 0 or value is np.nan:
+        if not str(index).isnumeric() or index == 0:
             continue
 
         if index not in student_data_dict:  # if empty, make a new row
@@ -102,26 +102,14 @@ def reshape_student_data(student_number):
 
         if 'Accessed' in header:
             student_data_dict[index]['Completed'] = value
-            
         else:
-            if header in ['Time Spent on Step', 'Video Length', 'Audio Length']:
-                value = parse_time(value)
-            
-            elif header == 'Paragraph Length':
-                value = parse_char(value)
-                
             student_data_dict[index][header] = value
 
     # Convert the dictionary back to a list of lists
-    reshaped_student_data = [row.get(s, '') for s in student_grade_cols[:] for row in student_data_dict.values()]
+    reshaped_student_data = [[row.get(s, '') for s in student_grade_cols] for row in student_data_dict.values()]
 
     return reshaped_student_data
 
-
-def parse_grade(str_grade):
-    num_grade = re.split('/', str_grade)
-    dec_grade = int(num_grade[0]) / int(num_grade[1]) 
-    return dec_grade
 
 def parse_time(str_sec):    
     splits = re.split('m|s', str_sec)
@@ -130,8 +118,8 @@ def parse_time(str_sec):
     total_seconds = int(num_minutes)*60 + int(num_seconds)
     return total_seconds
 
-def parse_char(str_char):
-    num_chars = re.split('Character ', str_char)[0]    
+def parse_chars(str_char):
+    num_chars = re.split('Character', str_char)[0]    
     return num_chars
 
 
@@ -145,9 +133,9 @@ def read_class_data(data_df):
     student_numbers = data_df.columns[2:-2] # student number list, omit last columns with averages 
 
     for sn in student_numbers:    
-        # st_lesson_info format is lesson_num + student_lesson_cols    
-        st_lesson_info = list(data_df[sn][0:5])  # same for all rows for one student
-
+        # st_lesson_info format is lesson_num + student_lesson_cols  
+        st_lesson_info = list(data_df[sn][0:5]) 
+        
         # Reformat date string to MM-DD-YY
         date_string = st_lesson_info[1]
         if date_string is not np.nan:
@@ -158,6 +146,7 @@ def read_class_data(data_df):
             formatted_date = datetime_object.strftime('%m/%d/%y')
             st_lesson_info[1] = formatted_date
 
+
         time_spent = st_lesson_info[2] 
         if isinstance (time_spent, str):
             st_lesson_info[2] = parse_time(time_spent) 
@@ -165,21 +154,17 @@ def read_class_data(data_df):
 
         # Reformat completion percent at string with %
         pct_complete = st_lesson_info[3]  # TODO check 100/100 for Piros
-        grade = st_lesson_info[4]
         
-        if pct_complete is not np.nan:
-            if '%' in pct_complete:
-                pct_complete = re.split('%', pct_complete)[0]
+        if pct_complete is not np.nan and '%' in pct_complete:
+           pct_complete = re.split('%', pct_complete)[0]
             
-            st_lesson_info[3] = float(pct_complete)
+           st_lesson_info[3] = float(pct_complete)
 
-#            decimal_value = float(pct_complete)
-#                        
-#            percent_string = "{:.0%}".format(decimal_value)
-#            st_lesson_info[3] = percent_string
+        grade = st_lesson_info[4]
+        if grade is not np.nan and '/' in grade:
+            num_grade = re.split('/', grade)
+            st_lesson_info[4] = int(num_grade[0]) / int(num_grade[1])
 
-        if '/' in grade:
-            st_lesson_info[4] = parse_grade(grade)
 
 
         # Create current row
@@ -195,17 +180,21 @@ def read_class_data(data_df):
     return all_student_data
 
 
+
 # File path
 system_path = '/Users/fayshaw/Library/CloudStorage/Dropbox/DropFSall/_Data/Soutlier/'
-folder_path = 'DI Data (Patricia Piros)/'
-file_path = system_path + folder_path
+os.chdir(system_path)
+
+teacher_dir = 'DI Data (Patricia Piros)/'
+#folder_path = system_path + teacher_dir
+
 
 #folder_path = 'teacher_directory'
-f_splits = re.split('\(|\)|\s', folder_path)
+f_splits = re.split('\(|\)|\s', teacher_dir)
 teacher = f_splits[4]
 
 # List all files in the folder
-files = os.listdir(file_path)
+files = os.listdir(teacher_dir)
 
 
 # This data will be the same for each row of one student
@@ -217,7 +206,8 @@ student_grade_cols     =  ['Completed', 'Time Spent on Step', 'Reviewed Peer Res
 student_grade_cols_out =  ['Completed', 'Time Spent on Step (sec)', 'Reviewed Peer Responses', 'Paragraph Length (char)',
                            'Video Length (sec)', 'Audio Length (sec)'] # added sec, char
 
-#student_grade_cols_numbered = ['Inc Step Num'] + student_grade_cols  
+# student completion is similar except with Inc Step Num and without Video and Audio Length
+# student_grade_cols_numbered = ['Inc Step Num'] + student_grade_cols  # Do I need this?
 
 
 step_type_list = ['Accessed', 'Paragraph', 'Single Select', 'Image', 'Table', 'Video', 'Audio']
@@ -236,10 +226,10 @@ for f in files:
     lessons.append(lesson_num)
     
     # File names
-    file_path = 'DI Copy of EngagementReport - ' + lesson_num + '.xlsx'
+#    file_name = 'DI Copy of EngagementReport - ' + lesson_num + '.xlsx'
 
     # Read file
-    data_df = pd.read_excel(folder_path + file_path, dtype=str) 
+    data_df = pd.read_excel(teacher_dir + f, dtype=str) 
 
     # Initial processing
     data_df.columns = data_df.columns.astype(str)   # read student names as strings
@@ -259,18 +249,4 @@ for f in files:
     # Write files
     output_file_name = 'output_data_' + teacher + '_' + lesson_num
 
- #   all_df.to_excel(output_file_name + '.xlsx', index=False)
     all_df.to_csv(output_file_name + '.csv', index=False)
-
-
-    lesson_df = pd.DataFrame(lesson_data, columns=lesson_cols)
-    lesson_file_name = 'lesson_data_' + lesson_num
-
-    # Write csv for each lesson
-    #    lesson_df.to_csv(output_lesson_data + '.csv', index=False)
-
-    # Write lesson data to one Excel sheet with one tab per lesson
-    
-    # Or use excel writer?
-    lesson_df.to_excel('lesson_data.xlsx', sheet_name=lesson_num)
-
