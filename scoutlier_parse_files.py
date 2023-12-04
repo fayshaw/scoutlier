@@ -73,7 +73,6 @@ def parse_row_headers(step_info_df):
                     elif step_type == 'Video':
                         print(lesson_num, '\b: video')
 
-
                 else:
                     new_row.append("")
 
@@ -85,7 +84,8 @@ def parse_row_headers(step_info_df):
 
 def reshape_student_data(student_number):
     """
-    Populates dictionary with student data and reshapes it to a table 
+    Populates dictionary with student data and reshapes it into a table 
+    Parses time to seconds, paragraph chars
     """
     # Initialize a dictionary to store the reshaped student data
     student_data_dict = {}
@@ -94,7 +94,7 @@ def reshape_student_data(student_number):
     for index, row in data_df[['Inc step', 'Step Info', student_number]].iterrows():
         index, header, value = row
 
-        if not str(index).isnumeric() or index == 0:
+        if not str(index).isnumeric() or index == 0 or value is np.nan:
             continue
 
         if index not in student_data_dict:  # if empty, make a new row
@@ -102,17 +102,18 @@ def reshape_student_data(student_number):
 
         if 'Accessed' in header:
             student_data_dict[index]['Completed'] = value
+            
         else:
-            if header in ['Time Spent on Step', 'Video Length', 'Video Length'] and value is not np.nan:
+            if header in ['Time Spent on Step', 'Video Length', 'Audio Length']:
                 value = parse_time(value)
             
-            elif header == 'Paragraph Length' and value is not np.nan:
+            elif header == 'Paragraph Length':
                 value = parse_char(value)
                 
             student_data_dict[index][header] = value
 
     # Convert the dictionary back to a list of lists
-    reshaped_student_data = [[row.get(s, '') for s in student_grade_cols_numbered[1:]] for row in student_data_dict.values()]
+    reshaped_student_data = [row.get(s, '') for s in student_grade_cols[:] for row in student_data_dict.values()]
 
     return reshaped_student_data
 
@@ -145,14 +146,10 @@ def read_class_data(data_df):
 
     for sn in student_numbers:    
         # st_lesson_info format is lesson_num + student_lesson_cols    
-        time_spent = data_df[sn][2] 
-        if isinstance (time_spent, str):
-            data_df[sn][2] = parse_time(time_spent) 
         st_lesson_info = list(data_df[sn][0:5])  # same for all rows for one student
 
-
         # Reformat date string to MM-DD-YY
-        date_string = data_df[sn][1]
+        date_string = st_lesson_info[1]
         if date_string is not np.nan:
             # Convert string to datetime object
             datetime_object = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
@@ -161,12 +158,28 @@ def read_class_data(data_df):
             formatted_date = datetime_object.strftime('%m/%d/%y')
             st_lesson_info[1] = formatted_date
 
+        time_spent = st_lesson_info[2] 
+        if isinstance (time_spent, str):
+            st_lesson_info[2] = parse_time(time_spent) 
+
+
         # Reformat completion percent at string with %
-        grade = st_lesson_info[3]  # TODO check 100/100 for Piros
-        if grade is not np.nan:
-            decimal_value = float(grade)
-            percent_string = "{:.0%}".format(decimal_value)
-            st_lesson_info[3] = percent_string
+        pct_complete = st_lesson_info[3]  # TODO check 100/100 for Piros
+        grade = st_lesson_info[4]
+        
+        if pct_complete is not np.nan:
+            if '%' in pct_complete:
+                pct_complete = re.split('%', pct_complete)[0]
+            
+            st_lesson_info[3] = float(pct_complete)
+
+#            decimal_value = float(pct_complete)
+#                        
+#            percent_string = "{:.0%}".format(decimal_value)
+#            st_lesson_info[3] = percent_string
+
+        if '/' in grade:
+            st_lesson_info[4] = parse_grade(grade)
 
 
         # Create current row
@@ -183,7 +196,11 @@ def read_class_data(data_df):
 
 
 # File path
-folder_path = 'teacher_directory'
+system_path = '/Users/fayshaw/Library/CloudStorage/Dropbox/DropFSall/_Data/Soutlier/'
+folder_path = 'DI Data (Patricia Piros)/'
+file_path = system_path + folder_path
+
+#folder_path = 'teacher_directory'
 f_splits = re.split('\(|\)|\s', folder_path)
 teacher = f_splits[4]
 
@@ -200,8 +217,7 @@ student_grade_cols     =  ['Completed', 'Time Spent on Step', 'Reviewed Peer Res
 student_grade_cols_out =  ['Completed', 'Time Spent on Step (sec)', 'Reviewed Peer Responses', 'Paragraph Length (char)',
                            'Video Length (sec)', 'Audio Length (sec)'] # added sec, char
 
-# student completion is similar except with Inc Step Num and without Video and Audio Length
-student_grade_cols_numbered = ['Inc Step Num'] + student_grade_cols  # Do I need this?
+#student_grade_cols_numbered = ['Inc Step Num'] + student_grade_cols  
 
 
 step_type_list = ['Accessed', 'Paragraph', 'Single Select', 'Image', 'Table', 'Video', 'Audio']
