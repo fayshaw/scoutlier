@@ -73,7 +73,6 @@ def parse_row_headers(step_info_df):
                     elif step_type == 'Video':
                         print(lesson_num, '\b: video')
 
-
                 else:
                     new_row.append("")
 
@@ -103,6 +102,13 @@ def reshape_student_data(student_number):
         if 'Accessed' in header:
             student_data_dict[index]['Completed'] = value
         else:
+            
+            if header in ['Time Spent on Step', 'Video Length', 'Audio Length'] and value is not np.nan:
+                value = parse_time(value)
+            
+            elif header == 'Paragraph Length' and value is not np.nan:
+                value = re.split('Character', value)[0]   
+                        
             student_data_dict[index][header] = value
 
     # Convert the dictionary back to a list of lists
@@ -110,17 +116,12 @@ def reshape_student_data(student_number):
 
     return reshaped_student_data
 
-
 def parse_time(str_sec):    
     splits = re.split('m|s', str_sec)
     num_minutes = splits[0]
     num_seconds = splits[1]
     total_seconds = int(num_minutes)*60 + int(num_seconds)
     return total_seconds
-
-def parse_chars(str_char):
-    num_chars = re.split('Character', str_char)[0]    
-    return num_chars
 
 
 def read_class_data(data_df):
@@ -146,25 +147,19 @@ def read_class_data(data_df):
             formatted_date = datetime_object.strftime('%m/%d/%y')
             st_lesson_info[1] = formatted_date
 
+        time_spent = st_lesson_info[2]
+        if isinstance (time_spent, str): # min sec to sec
+            st_lesson_info[2] = parse_time(time_spent)
 
-        time_spent = st_lesson_info[2] 
-        if isinstance (time_spent, str):
-            st_lesson_info[2] = parse_time(time_spent) 
-
-
-        # Reformat completion percent at string with %
-        pct_complete = st_lesson_info[3]  # TODO check 100/100 for Piros
-        
-        if pct_complete is not np.nan and '%' in pct_complete:
-           pct_complete = re.split('%', pct_complete)[0]
-            
-           st_lesson_info[3] = float(pct_complete)
+        pct_complete = st_lesson_info[3] 
+        if pct_complete is not np.nan and '%' in pct_complete: # percent% to decimal
+           pct_complete = re.split('%', pct_complete)[0] 
+           st_lesson_info[3] = float(pct_complete) 
 
         grade = st_lesson_info[4]
-        if grade is not np.nan and '/' in grade:
+        if grade is not np.nan and '/' in grade: #100/100 to 1
             num_grade = re.split('/', grade)
             st_lesson_info[4] = int(num_grade[0]) / int(num_grade[1])
-
 
 
         # Create current row
@@ -182,14 +177,11 @@ def read_class_data(data_df):
 
 
 # File path
-system_path = '/Users/fayshaw/Library/CloudStorage/Dropbox/DropFSall/_Data/Soutlier/'
+
+system_path = '/Users/user'
 os.chdir(system_path)
+teacher_dir = 'teacher_directory'
 
-teacher_dir = 'DI Data (Patricia Piros)/'
-#folder_path = system_path + teacher_dir
-
-
-#folder_path = 'teacher_directory'
 f_splits = re.split('\(|\)|\s', teacher_dir)
 teacher = f_splits[4]
 
@@ -205,9 +197,6 @@ student_grade_cols     =  ['Completed', 'Time Spent on Step', 'Reviewed Peer Res
                            'Video Length', 'Audio Length']
 student_grade_cols_out =  ['Completed', 'Time Spent on Step (sec)', 'Reviewed Peer Responses', 'Paragraph Length (char)',
                            'Video Length (sec)', 'Audio Length (sec)'] # added sec, char
-
-# student completion is similar except with Inc Step Num and without Video and Audio Length
-# student_grade_cols_numbered = ['Inc Step Num'] + student_grade_cols  # Do I need this?
 
 
 step_type_list = ['Accessed', 'Paragraph', 'Single Select', 'Image', 'Table', 'Video', 'Audio']
@@ -225,8 +214,6 @@ for f in files:
     lesson_num = lesson[1]
     lessons.append(lesson_num)
     
-    # File names
-#    file_name = 'DI Copy of EngagementReport - ' + lesson_num + '.xlsx'
 
     # Read file
     data_df = pd.read_excel(teacher_dir + f, dtype=str) 
