@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import re
 import os
+from dotenv import load_dotenv
 from datetime import datetime
 
 
@@ -177,10 +178,12 @@ def read_class_data(data_df):
 
 
 # File path
+load_dotenv()
 
-system_path = '/Users/user'
-os.chdir(system_path)
-teacher_dir = 'teacher_directory'
+local_path = os.environ.get('LOCAL_PATH')
+os.chdir(local_path)
+
+teacher_dir = os.environ.get('TEACHER_DIR')
 
 f_splits = re.split('\(|\)|\s', teacher_dir)
 teacher = f_splits[4]
@@ -206,14 +209,17 @@ lesson_cols = ['Inc Step Num', 'Task Number', 'Task Description', 'Step Number',
 
 lessons = []
 
+
 for f in files:
+    
+    if '~' in f or '.DS_Store' in f:
+        continue
 
     # Lesson name from file
     pattern = r'-\s*(.*?)\.'
     lesson = re.search(pattern, f)
     lesson_num = lesson[1]
     lessons.append(lesson_num)
-    
 
     # Read file
     data_df = pd.read_excel(teacher_dir + f, dtype=str) 
